@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+const GRAPHQL_URL = 'https://graphql.sabanus.site/'
+
 const sampleSchema = {
   students: {
     id: 'ID!',
@@ -62,24 +64,15 @@ export default function GraphQLInterface() {
 
   const fetchCatBreeds = async () => {
     try {
-      const response = await fetch('http://localhost:8001/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: `
-            query {
-              catBreeds {
-                id
-              }
-            }
-          `
-        })
-      })
+      const query = `
+        query {
+          catBreeds {
+            id
+          }
+        }
+      `
 
-      const text = await response.text()
-      const data = text ? JSON.parse(text) : null
+      const data = await executeGraphQLQuery(query)
 
       if (data?.data?.catBreeds) {
         const breedIds = data.data.catBreeds.map((breed: any) => breed.id)
@@ -127,6 +120,27 @@ export default function GraphQLInterface() {
 
   const handleInputBlur = () => {
     setTimeout(() => setShowBreedsDropdown(false), 200)
+  }
+
+  const executeGraphQLQuery = async (query: string, variables?: any) => {
+    try {
+      const response = await fetch(GRAPHQL_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query,
+          ...(variables && { variables })
+        })
+      })
+
+      const text = await response.text()
+      return text ? JSON.parse(text) : null
+    } catch (error) {
+      console.error('GraphQL request error:', error)
+      throw error
+    }
   }
 
   const generateStudentsQuery = () => {
@@ -186,18 +200,7 @@ query GetCatById($id: String!) {
     setError(null)
 
     try {
-      const response = await fetch('http://localhost:8001/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: queryStr
-        })
-      })
-
-      const text = await response.text()
-      const data = text ? JSON.parse(text) : null
+      const data = await executeGraphQLQuery(queryStr)
       setGeneratedStudentQuery(queryStr)
       setStudentResponse(data)
 
@@ -235,19 +238,7 @@ query GetCatById($id: String!) {
     setError(null)
 
     try {
-      const response = await fetch('http://localhost:8001/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: queryStr,
-          variables: { id: catId }
-        })
-      })
-
-      const text = await response.text()
-      const data = text ? JSON.parse(text) : null
+      const data = await executeGraphQLQuery(queryStr, { id: catId })
       setGeneratedCatQuery(queryStr)
       setCatResponse(data)
 
