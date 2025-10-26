@@ -10,12 +10,14 @@ const sampleSchema = {
     createdAt: 'String'
   },
   cat: {
-    id: 'ID!',
+    id: 'String!',
     name: 'String!',
-    breed: 'String!',
-    color: 'String!',
-    age: 'Int',
-    createdAt: 'String'
+    description: 'String',
+    temperament: 'String',
+    origin: 'String',
+    lifeSpan: 'String',
+    weight: 'CatWeight',
+    image: 'CatImage'
   }
 }
 
@@ -40,6 +42,9 @@ export default function GraphQLInterface() {
   const [catLoading, setCatLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [catId, setCatId] = useState('')
+  const [validCatBreeds, setValidCatBreeds] = useState<string[]>([])
+  const [showBreedsDropdown, setShowBreedsDropdown] = useState(false)
+  const [filteredBreeds, setFilteredBreeds] = useState<string[]>([])
 
   const handleStudentFieldToggle = (field: string) => {
     setSelectedStudentFields(prev => ({
@@ -53,6 +58,75 @@ export default function GraphQLInterface() {
       ...prev,
       [field]: !prev[field]
     }))
+  }
+
+  const fetchCatBreeds = async () => {
+    try {
+      const response = await fetch('http://localhost:8001/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: `
+            query {
+              catBreeds {
+                id
+              }
+            }
+          `
+        })
+      })
+
+      const text = await response.text()
+      const data = text ? JSON.parse(text) : null
+
+      if (data?.data?.catBreeds) {
+        const breedIds = data.data.catBreeds.map((breed: any) => breed.id)
+        setValidCatBreeds(breedIds)
+      }
+    } catch (error) {
+      console.error('Error fetching cat breeds:', error)
+    }
+  }
+
+  const isValidBreedId = (id: string): boolean => {
+    return validCatBreeds.includes(id)
+  }
+
+  const handleCatIdChange = (value: string) => {
+    setCatId(value)
+    setShowBreedsDropdown(true)
+
+    const filtered = validCatBreeds.filter(breed =>
+      breed.toLowerCase().includes(value.toLowerCase())
+    )
+    setFilteredBreeds(filtered)
+  }
+
+  const selectBreed = (breedId: string) => {
+    setCatId(breedId)
+    setShowBreedsDropdown(false)
+    setFilteredBreeds([])
+  }
+
+  const handleInputFocus = () => {
+    if (validCatBreeds.length === 0) {
+      fetchCatBreeds()
+    }
+    setShowBreedsDropdown(true)
+    if (catId.trim()) {
+      const filtered = validCatBreeds.filter(breed =>
+        breed.toLowerCase().includes(catId.toLowerCase())
+      )
+      setFilteredBreeds(filtered)
+    } else {
+      setFilteredBreeds(validCatBreeds)
+    }
+  }
+
+  const handleInputBlur = () => {
+    setTimeout(() => setShowBreedsDropdown(false), 200)
   }
 
   const generateStudentsQuery = () => {
@@ -73,10 +147,26 @@ query Students {
     const selectedFields = Object.keys(selectedCatFields).filter(field => selectedCatFields[field])
     if (selectedFields.length === 0) return ''
 
+    let queryFields = selectedFields.map(field => {
+      if (field === 'weight') {
+        return `weight {
+          imperial
+          metric
+        }`
+      } else if (field === 'image') {
+        return `image {
+          url
+          width
+          height
+        }`
+      }
+      return field
+    })
+
     const query = `
-query GetCatById($id: ID!) {
-  cat(id: $id) {
-    ${selectedFields.join('\n    ')}
+query GetCatById($id: String!) {
+  catBreed(id: $id) {
+    ${queryFields.join('\n    ')}
   }
 }`.trim()
 
@@ -124,7 +214,12 @@ query GetCatById($id: ID!) {
 
   const handleExecuteCatQuery = async () => {
     if (!catId.trim()) {
-      alert('Please enter a cat ID')
+      alert('Please enter a cat breed ID')
+      return
+    }
+
+    if (!isValidBreedId(catId)) {
+      alert('Invalid cat breed ID. Please select a valid breed from the suggestions.')
       return
     }
 
@@ -241,21 +336,50 @@ query GetCatById($id: ID!) {
           <div className="bg-slate-800/50 backdrop-blur-xl border border border-pink-500/30 rounded-xl shadow-2xl shadow-pink-500/20 p-6">
             <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
               <span className="w-3 h-3 bg-gradient-to-r from-pink-500 to-orange-500 rounded-full"></span>
-              Query Cat by ID
+              Query Cat Breed by ID
             </h2>
 
-            <div className="mb-6">
+            <div className="mb-6 relative">
               <label htmlFor="catId" className="block text-sm font-medium text-gray-300 mb-2">
-                Cat ID
+                Cat Breed ID
               </label>
-              <input
-                type="text"
-                id="catId"
-                value={catId}
-                onChange={(e) => setCatId(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-900/50 border border-pink-500/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 text-white placeholder-gray-400 shadow-lg"
-                placeholder="Enter cat ID"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  id="catId"
+                  value={catId}
+                  onChange={(e) => handleCatIdChange(e.target.value)}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
+                  className={`w-full px-4 py-3 bg-slate-900/50 border rounded-lg focus:outline-none focus:ring-2 text-white placeholder-gray-400 shadow-lg transition-all duration-200 ${
+                    catId && !isValidBreedId(catId)
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-pink-500/30 focus:ring-pink-500'
+                  }`}
+                  placeholder="Enter cat breed ID"
+                />
+                {catId && !isValidBreedId(catId) && (
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                    <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+
+              {showBreedsDropdown && filteredBreeds.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-pink-500/30 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                  {filteredBreeds.map((breed) => (
+                    <button
+                      key={breed}
+                      onClick={() => selectBreed(breed)}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-pink-500/20 hover:text-pink-300 transition-colors duration-150 border-b border-pink-500/10 last:border-b-0"
+                    >
+                      {breed}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="mb-6">
@@ -294,7 +418,7 @@ query GetCatById($id: ID!) {
             <div className="mt-6">
               <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-gradient-to-r from-pink-500 to-orange-500 rounded-full animate-pulse"></span>
-                Cat Response
+                Cat Breed Response
               </h3>
               <div className="bg-slate-900/90 border border-pink-500/20 rounded-lg p-4 max-h-64 overflow-y-auto">
                 <pre className="text-xs text-pink-300 whitespace-pre-wrap font-mono">
@@ -305,7 +429,7 @@ query GetCatById($id: ID!) {
           </div>
 
           <div className="bg-slate-800/50 backdrop-blur-xl border border border-pink-500/20 rounded-xl shadow-2xl shadow-pink-500/20 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Generated Cat Query</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">Generated Cat Breed Query</h3>
             <div className="bg-slate-900/80 border border-pink-500/20 rounded-lg p-4">
               <pre className="text-sm text-pink-300 whitespace-pre-wrap font-mono">
                 {generatedCatQuery || generateCatQuery() || 'Select fields to generate query'}
