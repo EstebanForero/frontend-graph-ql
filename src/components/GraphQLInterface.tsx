@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const GRAPHQL_URL = 'https://graphql.sabanus.site/'
+const GRAPHQL_URL = 'https://graphql.sabanus.site/api/graphql'
 
 const sampleSchema = {
   students: {
